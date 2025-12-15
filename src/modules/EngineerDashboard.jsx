@@ -104,7 +104,7 @@ const ProjectTable = ({ projects, onEdit, onAnalyze, onView, isLoading }) => {
       case ProjectStatus.Completed: return 'bg-emerald-100 text-emerald-800 border-emerald-200';
       case ProjectStatus.Ongoing: return 'bg-blue-100 text-blue-800 border-blue-200';
       case ProjectStatus.UnderProcurement: return 'bg-amber-100 text-amber-800 border-amber-200';
-      case ProjectStatus.ForFinalInspection: return 'bg-purple-100 text-purple-800 border-purple-200'; // Added color for new status
+      case ProjectStatus.ForFinalInspection: return 'bg-purple-100 text-purple-800 border-purple-200'; 
       default: return 'bg-slate-100 text-slate-800';
     }
   };
@@ -148,69 +148,84 @@ const ProjectTable = ({ projects, onEdit, onAnalyze, onView, isLoading }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-            {projects.map((project) => (
-              <tr key={project.id} className="hover:bg-slate-50 transition-colors group">
-                {/* Project Info */}
-                <td className="sticky left-0 bg-white group-hover:bg-slate-50 z-10 p-2 border-r border-slate-200 align-top">
-                  <div className="font-bold text-[#004A99] mb-1 line-clamp-2 leading-tight">{project.schoolName}</div>
-                  <div className="text-[9px] text-slate-500 mb-1 line-clamp-1">{project.projectName}</div>
-                  <div className="text-[9px] font-mono bg-slate-100 inline-block px-1 rounded text-slate-500">
-                    ID: {project.schoolId}
-                  </div>
-                </td>
-                
-                {/* Status - UPDATED SECTION */}
-                <td className="p-2 align-top">
-                  <div className="mb-2">
-                    <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold border ${getStatusColor(project.status)}`}>
-                        {project.status === 'Not Yet Started' ? 'Not Started' : project.status}
-                    </span>
-                  </div>
-                  
-                  {/* --- CONDITIONAL PROGRESS BAR --- */}
-                  {(project.status === ProjectStatus.Ongoing || project.status === ProjectStatus.Completed) ? (
-                    <>
-                        <div className="w-full bg-slate-200 rounded-full h-1.5 mt-1">
-                            <div 
-                                className={`h-1.5 rounded-full ${project.accomplishmentPercentage === 100 ? 'bg-emerald-500' : 'bg-blue-600'}`} 
-                                style={{ width: `${project.accomplishmentPercentage}%` }}></div>
-                        </div>
-                        <div className="text-[9px] text-right mt-0.5 font-mono text-slate-500">{project.accomplishmentPercentage || 0}%</div>
-                    </>
-                  ) : (
-                    <div className="text-[9px] text-slate-400 mt-2 italic opacity-60">
-                        {/* Display "For Final Inspection" status clearly when not showing percentage */}
-                        {project.status === ProjectStatus.ForFinalInspection ? 'Project Physical Completion' : '-- No Progress --'}
+            {projects.map((project) => {
+              // Check if project is completed to lock it
+              const isLocked = project.status === ProjectStatus.Completed;
+
+              return (
+                <tr key={project.id} className="hover:bg-slate-50 transition-colors group">
+                  {/* Project Info */}
+                  <td className="sticky left-0 bg-white group-hover:bg-slate-50 z-10 p-2 border-r border-slate-200 align-top">
+                    <div className="font-bold text-[#004A99] mb-1 line-clamp-2 leading-tight">{project.schoolName}</div>
+                    <div className="text-[9px] text-slate-500 mb-1 line-clamp-1">{project.projectName}</div>
+                    <div className="text-[9px] font-mono bg-slate-100 inline-block px-1 rounded text-slate-500">
+                      ID: {project.schoolId}
                     </div>
-                  )}
-                </td>
+                  </td>
+                  
+                  {/* Status */}
+                  <td className="p-2 align-top">
+                    <div className="mb-2">
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold border ${getStatusColor(project.status)}`}>
+                          {project.status === 'Not Yet Started' ? 'Not Started' : project.status}
+                      </span>
+                    </div>
+                    
+                    {/* --- CONDITIONAL PROGRESS BAR --- */}
+                    {(project.status === ProjectStatus.Ongoing || project.status === ProjectStatus.Completed) ? (
+                      <>
+                          <div className="w-full bg-slate-200 rounded-full h-1.5 mt-1">
+                              <div 
+                                  className={`h-1.5 rounded-full ${project.accomplishmentPercentage === 100 ? 'bg-emerald-500' : 'bg-blue-600'}`} 
+                                  style={{ width: `${project.accomplishmentPercentage}%` }}></div>
+                          </div>
+                          <div className="text-[9px] text-right mt-0.5 font-mono text-slate-500">{project.accomplishmentPercentage || 0}%</div>
+                      </>
+                    ) : (
+                      <div className="text-[9px] text-slate-400 mt-2 italic opacity-60">
+                          {project.status === ProjectStatus.ForFinalInspection ? 'Project Physical Completion' : '-- No Progress --'}
+                      </div>
+                    )}
+                  </td>
 
-                {/* Timeline */}
-                <td className="p-2 align-top text-[10px]">
-                  <div className="mb-1">
-                      <span className="text-slate-400 block text-[9px] uppercase">Target</span> 
-                      <span className="font-medium whitespace-nowrap">{formatDateShort(project.targetCompletionDate)}</span>
-                  </div>
-                  <div>
-                      <span className="text-slate-400 block text-[9px] uppercase">Budget</span> 
-                      <span className="font-mono text-[#004A99]">₱{((project.projectAllocation || 0)/1000000).toFixed(1)}M</span>
-                  </div>
-                </td>
+                  {/* Timeline */}
+                  <td className="p-2 align-top text-[10px]">
+                    <div className="mb-1">
+                        <span className="text-slate-400 block text-[9px] uppercase">Target</span> 
+                        <span className="font-medium whitespace-nowrap">{formatDateShort(project.targetCompletionDate)}</span>
+                    </div>
+                    <div>
+                        <span className="text-slate-400 block text-[9px] uppercase">Budget</span> 
+                        <span className="font-mono text-[#004A99]">₱{((project.projectAllocation || 0)/1000000).toFixed(1)}M</span>
+                    </div>
+                  </td>
 
-                {/* Actions */}
-                <td className="sticky right-0 bg-white group-hover:bg-slate-50 z-10 p-2 border-l border-slate-200 align-top text-center flex flex-col gap-1.5">
-                  <button onClick={() => onView(project)} className="w-full px-1 py-1 bg-slate-100 border border-slate-200 text-slate-600 text-[9px] font-bold rounded hover:bg-slate-200 transition">
-                    VIEW
-                  </button>
-                  <button onClick={() => onEdit(project)} className="w-full px-1 py-1 bg-[#004A99] text-white text-[9px] font-bold rounded hover:bg-blue-800 transition">
-                    UPDATE
-                  </button>
-                  <button onClick={() => onAnalyze(project)} className="w-full px-1 py-1 bg-purple-50 border border-purple-200 text-purple-600 text-[10px] font-bold rounded hover:bg-purple-100 transition">
-                     ✨
-                  </button>
-                </td>
-              </tr>
-            ))}
+                  {/* Actions */}
+                  <td className="sticky right-0 bg-white group-hover:bg-slate-50 z-10 p-2 border-l border-slate-200 align-top text-center flex flex-col gap-1.5">
+                    <button onClick={() => onView(project)} className="w-full px-1 py-1 bg-slate-100 border border-slate-200 text-slate-600 text-[9px] font-bold rounded hover:bg-slate-200 transition">
+                      VIEW
+                    </button>
+                    
+                    {/* UPDATED BUTTON: LOCKED IF COMPLETED */}
+                    <button 
+                      onClick={() => onEdit(project)} 
+                      disabled={isLocked}
+                      className={`w-full px-1 py-1 text-[9px] font-bold rounded transition ${
+                          isLocked 
+                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300' // Locked state
+                          : 'bg-[#004A99] text-white hover:bg-blue-800' // Active state
+                      }`}
+                    >
+                      {isLocked ? 'LOCKED' : 'UPDATE'}
+                    </button>
+
+                    <button onClick={() => onAnalyze(project)} className="w-full px-1 py-1 bg-purple-50 border border-purple-200 text-purple-600 text-[10px] font-bold rounded hover:bg-purple-100 transition">
+                      ✨
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -263,11 +278,10 @@ const EditProjectModal = ({ project, isOpen, onClose, onSave }) => {
             if (value === ProjectStatus.NotYetStarted || value === ProjectStatus.UnderProcurement) {
                 newData.accomplishmentPercentage = 0;
             } 
-            // Force 100% when status is manually set to Completed OR ForFinalInspection (UPDATED)
+            // Force 100% when status is manually set to Completed OR ForFinalInspection
             else if (value === ProjectStatus.Completed || value === ProjectStatus.ForFinalInspection) {
                  newData.accomplishmentPercentage = 100;
             }
-            // If changing to Ongoing, the current percentage is preserved by default.
         }
 
         return newData;
@@ -339,9 +353,6 @@ const EditProjectModal = ({ project, isOpen, onClose, onSave }) => {
     </div>
   );
 };
-
-// ... (rest of EngineerDashboard.jsx is unchanged)
-// ... (The main component EngineerDashboard and the ProjectTable are unchanged from the previous step as their logic for displaying/hiding the percentage was already correct based on the new requirements)
 
 const AIInsightModal = ({ isOpen, onClose, projectName, analysis, isLoading }) => {
     if (!isOpen) return null;

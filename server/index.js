@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import pg from 'pg';
 import cors from 'cors';
+import { fileURLToPath } from 'url';
 
 // Load environment variables
 dotenv.config();
@@ -299,7 +300,7 @@ app.post('/api/save-enrolment', async (req, res) => {
 //                    ENGINEER FORMS ROUTES
 // ==================================================================
 
-// --- 8. POST: Save New Project ---
+// --- 8. POST: Save New Project (WITH PH TIMEZONE FIX) ---
 app.post('/api/save-project', async (req, res) => {
   const data = req.body;
 
@@ -317,13 +318,18 @@ app.post('/api/save-project', async (req, res) => {
     valueOrNull(data.batchOfFunds), valueOrNull(data.otherRemarks)
   ];
 
+  // UPDATED QUERY: Added 'created_at' column and 'NOW() + interval' logic
   const query = `
     INSERT INTO "engineer_form" (
       project_name, school_name, school_id, region, division,
       status, accomplishment_percentage, status_as_of,
       target_completion_date, actual_completion_date, notice_to_proceed,
-      contractor_name, project_allocation, batch_of_funds, other_remarks
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      contractor_name, project_allocation, batch_of_funds, other_remarks,
+      created_at
+    ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+        NOW() + interval '8 hours'
+    )
     RETURNING project_id, project_name;
   `;
 
@@ -331,6 +337,7 @@ app.post('/api/save-project', async (req, res) => {
     const result = await pool.query(query, values);
     const newProject = result.rows[0];
 
+    // Log the activity
     await logActivity(
         data.uid, 
         data.modifiedBy, 
@@ -352,16 +359,25 @@ app.put('/api/update-project/:id', async (req, res) => {
   const { id } = req.params;
   const data = req.body;
 
+  // We add 'updated_at = NOW() + interval '8 hours'' to the SET list
   const query = `
     UPDATE "engineer_form"
-    SET status = $1, accomplishment_percentage = $2, status_as_of = $3, other_remarks = $4
+    SET 
+      status = $1, 
+      accomplishment_percentage = $2, 
+      status_as_of = $3, 
+      other_remarks = $4,
+      updated_at = NOW() + interval '8 hours'
     WHERE project_id = $5
     RETURNING *;
   `;
 
   const values = [
-    data.status, parseIntOrNull(data.accomplishmentPercentage),
-    valueOrNull(data.statusAsOfDate), valueOrNull(data.otherRemarks), id
+    data.status, 
+    parseIntOrNull(data.accomplishmentPercentage),
+    valueOrNull(data.statusAsOfDate), 
+    valueOrNull(data.otherRemarks), 
+    id
   ];
 
   try {
@@ -369,6 +385,7 @@ app.put('/api/update-project/:id', async (req, res) => {
     
     if (result.rowCount === 0) return res.status(404).json({ message: "Project not found" });
 
+    // Log the activity
     await logActivity(
         data.uid, 
         data.modifiedBy, 
@@ -439,7 +456,6 @@ app.get('/api/projects/:id', async (req, res) => {
 // ==================================================================
 
 // 1. FOR LOCAL DEVELOPMENT (runs when you type 'node api/index.js')
-import { fileURLToPath } from 'url';
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
