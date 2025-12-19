@@ -12,12 +12,15 @@ const { Pool } = pg;
 
 const app = express();
 
-// --- MIDDLEWARE ---
+// ==================================================================
+//                        MIDDLEWARE
+// ==================================================================
 app.use(cors({
     origin: [
-        'http://localhost:5173',           // Vite Local
-        'https://insight-ed-pwa.vercel.app', // Your Vercel Frontend
-        'https://insight-ed-frontend.vercel.app' 
+        'http://localhost:5173',                    // Vite Local
+        'https://insight-ed-pwa.vercel.app',        // PWA Vercel
+        'https://insight-ed-mobile-pwa.vercel.app', // Mobile PWA Vercel
+        'https://insight-ed-frontend.vercel.app'    // Frontend Vercel
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
@@ -26,7 +29,9 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// --- DATABASE CONNECTION ---
+// ==================================================================
+//                  DATABASE CONNECTION
+// ==================================================================
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
@@ -126,20 +131,59 @@ app.get('/api/check-school/:id', async (req, res) => {
 //                  SCHOOL HEAD FORMS ROUTES
 // ==================================================================
 
-// --- 4. POST: Save School Profile ---
+// --- 4. POST: Save School Profile (With Detailed Audit Log from File 2) ---
 app.post('/api/save-school', async (req, res) => {
   const data = req.body;
   const client = await pool.connect();
 
   try {
-    await client.query('BEGIN'); 
+    await client.query('BEGIN');
 
+    // 1. FETCH EXISTING DATA FIRST
+    const checkQuery = 'SELECT * FROM school_profiles WHERE school_id = $1';
+    const existingRes = await client.query(checkQuery, [data.schoolId]);
+    const oldData = existingRes.rows[0];
+
+    // 2. DETECT CHANGES
+    let changes = [];
+    let actionType = "Profile Created"; // Default for new rows
+
+    if (oldData) {
+      actionType = "Profile Updated";
+      
+      const fieldMap = {
+        schoolName: 'school_name', region: 'region', province: 'province',
+        division: 'division', district: 'district', municipality: 'municipality',
+        legDistrict: 'leg_district', barangay: 'barangay', motherSchoolId: 'mother_school_id',
+        latitude: 'latitude', longitude: 'longitude'
+      };
+
+      for (const [frontKey, dbCol] of Object.entries(fieldMap)) {
+        const newValue = data[frontKey];
+        const oldValue = oldData[dbCol];
+
+        const cleanNew = String(newValue || '').trim();
+        const cleanOld = String(oldValue || '').trim();
+
+        if (cleanNew !== cleanOld) {
+            changes.push({
+                field: dbCol,
+                old_value: cleanOld || "N/A",
+                new_value: cleanNew || "N/A"
+            });
+        }
+      }
+    }
+
+    // 3. CREATE DETAILED LOG ENTRY
     const newLogEntry = {
       timestamp: new Date().toISOString(),
       user: data.submittedBy,
-      action: "Profile Update"
+      action: actionType,
+      changes: changes
     };
 
+    // 4. PERFORM INSERT OR UPDATE
     const query = `
       INSERT INTO school_profiles (
         school_id, school_name, region, province, division, district, 
@@ -178,7 +222,7 @@ app.post('/api/save-school', async (req, res) => {
 
     await client.query(query, values);
     await client.query('COMMIT');
-    res.status(200).json({ message: "Profile saved successfully!" });
+    res.status(200).json({ message: "Profile saved successfully!", changes: changes });
 
   } catch (err) {
     await client.query('ROLLBACK');
@@ -224,7 +268,6 @@ app.get('/api/school-head/:uid', async (req, res) => {
   const { uid } = req.params;
   try {
     const result = await pool.query('SELECT * FROM school_heads WHERE user_uid = $1', [uid]);
-    
     if (result.rows.length > 0) {
       res.json({ exists: true, data: result.rows[0] });
     } else {
@@ -298,34 +341,215 @@ app.post('/api/save-enrolment', async (req, res) => {
 });
 
 // ==================================================================
-//                    ENGINEER ROUTES
+//               EXTENDED SCHOOL DATA ROUTES (From File 2)
 // ==================================================================
 
-// --- 8. POST: Save New Project (WITH PH TIMEZONE FIX) ---
+// --- 8. GET: Organized Classes Data ---
+app.get('/api/organized-classes/:uid', async (req, res) => {
+    const { uid } = req.params;
+    try {
+        const query = `
+            SELECT 
+                school_id, school_name, curricular_offering,
+                classes_kinder, classes_grade_1, classes_grade_2, classes_grade_3,
+                classes_grade_4, classes_grade_5, classes_grade_6,
+                classes_grade_7, classes_grade_8, classes_grade_9, classes_grade_10,
+                classes_grade_11, classes_grade_12
+            FROM school_profiles 
+            WHERE submitted_by = $1
+        `;
+        const result = await pool.query(query, [uid]);
+        if (result.rows.length === 0) return res.json({ exists: false });
+        const row = result.rows[0];
+        res.json({ 
+            exists: true, schoolId: row.school_id, offering: row.curricular_offering,
+            data: {
+                kinder: row.classes_kinder,
+                grade_1: row.classes_grade_1, grade_2: row.classes_grade_2, 
+                grade_3: row.classes_grade_3, grade_4: row.classes_grade_4, 
+                grade_5: row.classes_grade_5, grade_6: row.classes_grade_6,
+                grade_7: row.classes_grade_7, grade_8: row.classes_grade_8, 
+                grade_9: row.classes_grade_9, grade_10: row.classes_grade_10,
+                grade_11: row.classes_grade_11, grade_12: row.classes_grade_12
+            }
+        });
+    } catch (err) { console.error(err); res.status(500).json({ error: "Fetch failed" }); }
+});
+
+// --- 9. POST: Save Organized Classes ---
+app.post('/api/save-organized-classes', async (req, res) => {
+    const data = req.body;
+    try {
+        const query = `
+            UPDATE school_profiles SET
+                classes_kinder = $2, 
+                classes_grade_1 = $3, classes_grade_2 = $4, classes_grade_3 = $5,
+                classes_grade_4 = $6, classes_grade_5 = $7, classes_grade_6 = $8,
+                classes_grade_7 = $9, classes_grade_8 = $10, classes_grade_9 = $11,
+                classes_grade_10 = $12, classes_grade_11 = $13, classes_grade_12 = $14
+            WHERE school_id = $1
+        `;
+        await pool.query(query, [
+            data.schoolId, data.kinder, 
+            data.g1, data.g2, data.g3, data.g4, data.g5, data.g6,
+            data.g7, data.g8, data.g9, data.g10, data.g11, data.g12
+        ]);
+        res.json({ message: "Classes saved successfully!" });
+    } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+});
+
+// --- 10. GET: Teaching Personnel Data ---
+app.get('/api/teaching-personnel/:uid', async (req, res) => {
+    const { uid } = req.params;
+    try {
+        const query = `SELECT school_id, school_name, curricular_offering, teachers_es, teachers_jhs, teachers_shs FROM school_profiles WHERE submitted_by = $1`;
+        const result = await pool.query(query, [uid]);
+        if (result.rows.length === 0) return res.json({ exists: false });
+        const row = result.rows[0];
+        res.json({ 
+            exists: true, schoolId: row.school_id, offering: row.curricular_offering,
+            data: { es: row.teachers_es, jhs: row.teachers_jhs, shs: row.teachers_shs }
+        });
+    } catch (err) { console.error(err); res.status(500).json({ error: "Fetch failed" }); }
+});
+
+// --- 11. POST: Save Teaching Personnel ---
+app.post('/api/save-teaching-personnel', async (req, res) => {
+    const data = req.body;
+    try {
+        const query = `UPDATE school_profiles SET teachers_es = $2, teachers_jhs = $3, teachers_shs = $4 WHERE school_id = $1`;
+        await pool.query(query, [data.schoolId, data.es, data.jhs, data.shs]);
+        res.json({ message: "Teaching personnel saved successfully!" });
+    } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+});
+
+// --- 12. GET: Learning Modalities ---
+app.get('/api/learning-modalities/:uid', async (req, res) => {
+    const { uid } = req.params;
+    try {
+        const result = await pool.query('SELECT * FROM school_profiles WHERE submitted_by = $1', [uid]);
+        if (result.rows.length === 0) return res.json({ exists: false });
+        res.json({ exists: true, schoolId: result.rows[0].school_id, offering: result.rows[0].curricular_offering, data: result.rows[0] });
+    } catch (err) { console.error(err); res.status(500).json({ error: "Fetch failed" }); }
+});
+
+// --- 13. POST: Save Learning Modalities ---
+app.post('/api/save-learning-modalities', async (req, res) => {
+    const data = req.body;
+    try {
+        const query = `
+            UPDATE school_profiles SET
+                shift_kinder = $2, shift_g1 = $3, shift_g2 = $4, shift_g3 = $5, shift_g4 = $6, shift_g5 = $7, shift_g6 = $8,
+                shift_g7 = $9, shift_g8 = $10, shift_g9 = $11, shift_g10 = $12, shift_g11 = $13, shift_g12 = $14,
+                mode_kinder = $15, mode_g1 = $16, mode_g2 = $17, mode_g3 = $18, mode_g4 = $19, mode_g5 = $20, mode_g6 = $21,
+                mode_g7 = $22, mode_g8 = $23, mode_g9 = $24, mode_g10 = $25, mode_g11 = $26, mode_g12 = $27,
+                adm_mdl = $28, adm_odl = $29, adm_tvi = $30, adm_blended = $31, adm_others = $32,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE school_id = $1
+        `;
+        await pool.query(query, [
+            data.schoolId,
+            data.shift_kinder, data.shift_g1, data.shift_g2, data.shift_g3, data.shift_g4, data.shift_g5, data.shift_g6,
+            data.shift_g7, data.shift_g8, data.shift_g9, data.shift_g10, data.shift_g11, data.shift_g12,
+            data.mode_kinder, data.mode_g1, data.mode_g2, data.mode_g3, data.mode_g4, data.mode_g5, data.mode_g6,
+            data.mode_g7, data.mode_g8, data.mode_g9, data.mode_g10, data.mode_g11, data.mode_g12,
+            data.adm_mdl, data.adm_odl, data.adm_tvi, data.adm_blended, data.adm_others
+        ]);
+        res.json({ message: "Modalities saved successfully!" });
+    } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+});
+
+// --- 14. GET & POST: School Resources ---
+app.get('/api/school-resources/:uid', async (req, res) => {
+    const { uid } = req.params;
+    try {
+        const result = await pool.query('SELECT * FROM school_profiles WHERE submitted_by = $1', [uid]);
+        if (result.rows.length === 0) return res.json({ exists: false });
+        res.json({ exists: true, data: result.rows[0] });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/save-school-resources', async (req, res) => {
+    const data = req.body;
+    try {
+        const query = `
+            UPDATE school_profiles SET
+                res_armchairs_good=$2, res_armchairs_repair=$3, res_teacher_tables_good=$4, res_teacher_tables_repair=$5,
+                res_blackboards_good=$6, res_blackboards_defective=$7,
+                res_desktops_instructional=$8, res_desktops_admin=$9, res_laptops_teachers=$10, res_tablets_learners=$11,
+                res_printers_working=$12, res_projectors_working=$13, res_internet_type=$14,
+                res_toilets_male=$15, res_toilets_female=$16, res_toilets_pwd=$17, res_faucets=$18, res_water_source=$19,
+                res_sci_labs=$20, res_com_labs=$21, res_tvl_workshops=$22,
+                updated_at=CURRENT_TIMESTAMP
+            WHERE school_id=$1
+        `;
+        await pool.query(query, [
+            data.schoolId,
+            data.res_armchairs_good, data.res_armchairs_repair, data.res_teacher_tables_good, data.res_teacher_tables_repair,
+            data.res_blackboards_good, data.res_blackboards_defective,
+            data.res_desktops_instructional, data.res_desktops_admin, data.res_laptops_teachers, data.res_tablets_learners,
+            data.res_printers_working, data.res_projectors_working, data.res_internet_type,
+            data.res_toilets_male, data.res_toilets_female, data.res_toilets_pwd, data.res_faucets, data.res_water_source,
+            data.res_sci_labs, data.res_com_labs, data.res_tvl_workshops
+        ]);
+        res.json({ message: "Resources saved!" });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- 15. GET & POST: Teacher Specialization ---
+app.get('/api/teacher-specialization/:uid', async (req, res) => {
+    const { uid } = req.params;
+    try {
+        const result = await pool.query('SELECT * FROM school_profiles WHERE submitted_by = $1', [uid]);
+        if (result.rows.length === 0) return res.json({ exists: false });
+        res.json({ exists: true, data: result.rows[0] });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/save-teacher-specialization', async (req, res) => {
+    const data = req.body;
+    try {
+        const query = `
+            UPDATE school_profiles SET
+                spec_english_major=$2, spec_english_teaching=$3, spec_filipino_major=$4, spec_filipino_teaching=$5,
+                spec_math_major=$6, spec_math_teaching=$7, spec_science_major=$8, spec_science_teaching=$9,
+                spec_ap_major=$10, spec_ap_teaching=$11, spec_mapeh_major=$12, spec_mapeh_teaching=$13,
+                spec_esp_major=$14, spec_esp_teaching=$15, spec_tle_major=$16, spec_tle_teaching=$17,
+                spec_guidance=$18, spec_librarian=$19, spec_ict_coord=$20, spec_drrm_coord=$21,
+                updated_at=CURRENT_TIMESTAMP
+            WHERE school_id=$1
+        `;
+        await pool.query(query, [
+            data.schoolId,
+            data.spec_english_major, data.spec_english_teaching, data.spec_filipino_major, data.spec_filipino_teaching,
+            data.spec_math_major, data.spec_math_teaching, data.spec_science_major, data.spec_science_teaching,
+            data.spec_ap_major, data.spec_ap_teaching, data.spec_mapeh_major, data.spec_mapeh_teaching,
+            data.spec_esp_major, data.spec_esp_teaching, data.spec_tle_major, data.spec_tle_teaching,
+            data.spec_guidance, data.spec_librarian, data.spec_ict_coord, data.spec_drrm_coord
+        ]);
+        res.json({ message: "Specialization saved!" });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ==================================================================
+//               ENGINEER ROUTES (Enhanced from File 1)
+// ==================================================================
+
+// --- 16. POST: Save New Project (With Engineer ID & Timezone) ---
 app.post('/api/save-project', async (req, res) => {
   const data = req.body;
 
-  // 1. Add engineer_id to the values array (index 16)
   const values = [
-    data.projectName, 
-    data.schoolName, 
-    data.schoolId, 
-    valueOrNull(data.region), 
-    valueOrNull(data.division), 
-    data.status || 'Not Yet Started', 
-    parseIntOrNull(data.accomplishmentPercentage), 
-    valueOrNull(data.statusAsOfDate), 
-    valueOrNull(data.targetCompletionDate), 
-    valueOrNull(data.actualCompletionDate), 
-    valueOrNull(data.noticeToProceed), 
-    valueOrNull(data.contractorName), 
-    parseNumberOrNull(data.projectAllocation), 
-    valueOrNull(data.batchOfFunds), 
-    valueOrNull(data.otherRemarks),
-    data.engineer_id // <--- NEW: Add this to match Step 1
+    data.projectName, data.schoolName, data.schoolId, 
+    valueOrNull(data.region), valueOrNull(data.division), 
+    data.status || 'Not Yet Started', parseIntOrNull(data.accomplishmentPercentage), 
+    valueOrNull(data.statusAsOfDate), valueOrNull(data.targetCompletionDate), 
+    valueOrNull(data.actualCompletionDate), valueOrNull(data.noticeToProceed), 
+    valueOrNull(data.contractorName), parseNumberOrNull(data.projectAllocation), 
+    valueOrNull(data.batchOfFunds), valueOrNull(data.otherRemarks),
+    data.engineer_id 
   ];
 
-  // 2. Update the query to include the engineer_id column
   const query = `
     INSERT INTO "engineer_form" (
       project_name, school_name, school_id, region, division, 
@@ -342,14 +566,9 @@ app.post('/api/save-project', async (req, res) => {
   try {
     const result = await pool.query(query, values);
     
-    // Log activity using the data sent from frontend
     await logActivity(
-      data.uid, 
-      data.modifiedBy, 
-      'Engineer', 
-      'CREATE', 
-      `Project: ${data.projectName}`, 
-      `New project created for ${data.schoolName}`
+      data.uid, data.modifiedBy, 'Engineer', 'CREATE', 
+      `Project: ${data.projectName}`, `New project created for ${data.schoolName}`
     );
 
     res.status(201).json({ success: true, project: result.rows[0] });
@@ -359,45 +578,32 @@ app.post('/api/save-project', async (req, res) => {
   }
 });
 
-// --- 9. PUT: Update Project ---
+// --- 17. PUT: Update Project (Timezone Aware) ---
 app.put('/api/update-project/:id', async (req, res) => {
   const { id } = req.params;
   const data = req.body;
 
-  // We add 'updated_at = NOW() + interval '8 hours'' to the SET list
   const query = `
     UPDATE "engineer_form"
     SET 
-      status = $1, 
-      accomplishment_percentage = $2, 
-      status_as_of = $3, 
-      other_remarks = $4,
+      status = $1, accomplishment_percentage = $2, status_as_of = $3, other_remarks = $4,
       created_at = NOW() + interval '8 hours'
     WHERE project_id = $5
     RETURNING *;
   `;
 
   const values = [
-    data.status, 
-    parseIntOrNull(data.accomplishmentPercentage),
-    valueOrNull(data.statusAsOfDate), 
-    valueOrNull(data.otherRemarks), 
-    id
+    data.status, parseIntOrNull(data.accomplishmentPercentage),
+    valueOrNull(data.statusAsOfDate), valueOrNull(data.otherRemarks), id
   ];
 
   try {
     const result = await pool.query(query, values);
-    
     if (result.rowCount === 0) return res.status(404).json({ message: "Project not found" });
 
-    // Log the activity
     await logActivity(
-        data.uid, 
-        data.modifiedBy, 
-        'Engineer', 
-        'UPDATE', 
-        `Project ID: ${id}`, 
-        `Updated status to ${data.status} (${data.accomplishmentPercentage}%)`
+        data.uid, data.modifiedBy, 'Engineer', 'UPDATE', 
+        `Project ID: ${id}`, `Updated status to ${data.status} (${data.accomplishmentPercentage}%)`
     );
 
     res.json({ message: "Update successful", project: result.rows[0] });
@@ -407,21 +613,16 @@ app.put('/api/update-project/:id', async (req, res) => {
   }
 });
 
-// --- 10. GET: Get All Projects ---
+// --- 18. GET: Get All Projects (Filtered by Engineer ID) ---
 app.get('/api/projects', async (req, res) => {
-  const { engineer_id } = req.query; // <--- Get the ID from the URL parameters
+  const { engineer_id } = req.query;
 
   if (!engineer_id) {
     return res.status(400).json({ error: "engineer_id is required" });
   }
 
   try {
-    // UPDATED QUERY: Added WHERE engineer_id = $1
-    const query = `
-      SELECT * FROM engineer_form 
-      WHERE engineer_id = $1 
-      ORDER BY created_at DESC
-    `;
+    const query = `SELECT * FROM engineer_form WHERE engineer_id = $1 ORDER BY created_at DESC`;
     const result = await pool.query(query, [engineer_id]);
     res.json(result.rows);
   } catch (err) {
@@ -430,7 +631,7 @@ app.get('/api/projects', async (req, res) => {
   }
 });
 
-// --- 11. GET: Get Single Project ---
+// --- 19. GET: Get Single Project ---
 app.get('/api/projects/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -455,32 +656,16 @@ app.get('/api/projects/:id', async (req, res) => {
   }
 });
 
-// --- 12. POST: Upload Project Image (Base64) ---
+// --- 20. POST: Upload Project Image (Base64) ---
 app.post('/api/upload-image', async (req, res) => {
   const { projectId, imageData, uploadedBy } = req.body;
-
-  if (!projectId || !imageData) {
-    return res.status(400).json({ error: "Missing required data" });
-  }
+  if (!projectId || !imageData) return res.status(400).json({ error: "Missing required data" });
 
   try {
-    const query = `
-      INSERT INTO engineer_image (project_id, image_data, uploaded_by)
-      VALUES ($1, $2, $3)
-      RETURNING id;
-    `;
+    const query = `INSERT INTO engineer_image (project_id, image_data, uploaded_by) VALUES ($1, $2, $3) RETURNING id;`;
     const result = await pool.query(query, [projectId, imageData, uploadedBy]);
 
-    // Log the activity
-    await logActivity(
-        uploadedBy, 
-        'Engineer', // You might want to pass the name here too
-        'Engineer', 
-        'UPLOAD', 
-        `Project ID: ${projectId}`, 
-        `Uploaded a new site image`
-    );
-
+    await logActivity(uploadedBy, 'Engineer', 'Engineer', 'UPLOAD', `Project ID: ${projectId}`, `Uploaded a new site image`);
     res.status(201).json({ success: true, imageId: result.rows[0].id });
   } catch (err) {
     console.error("❌ Image Upload Error:", err.message);
@@ -488,29 +673,22 @@ app.post('/api/upload-image', async (req, res) => {
   }
 });
 
-// --- 13. GET: Fetch All Images for a Specific Project ---
+// --- 21. GET: Fetch All Images for a Project ---
 app.get('/api/project-images/:projectId', async (req, res) => {
   const { projectId } = req.params;
-
   try {
-    const query = `
-      SELECT id, image_data, uploaded_by, created_at 
-      FROM engineer_image 
-      WHERE project_id = $1 
-      ORDER BY created_at DESC;
-    `;
+    const query = `SELECT id, image_data, uploaded_by, created_at FROM engineer_image WHERE project_id = $1 ORDER BY created_at DESC;`;
     const result = await pool.query(query, [projectId]);
     res.json(result.rows);
   } catch (err) {
     console.error("❌ Error fetching project images:", err.message);
-    res.status(500).json({ error: "Failed to fetch images from database" });
+    res.status(500).json({ error: "Failed to fetch images" });
   }
 });
 
-// --- NEW: Fetch All Images for a Specific Engineer ---
+// --- 22. GET: Fetch All Images for an Engineer ---
 app.get('/api/engineer-images/:engineerId', async (req, res) => {
   const { engineerId } = req.params;
-
   try {
     const query = `
       SELECT ei.id, ei.image_data, ei.created_at, ef.school_name 
@@ -526,38 +704,28 @@ app.get('/api/engineer-images/:engineerId', async (req, res) => {
     res.status(500).json({ error: "Failed to fetch gallery" });
   }
 });
+
 // ==================================================================
-//                    ADMIN ROUTES
+//                    ADMIN ROUTES (From File 1)
 // ==================================================================
-// --- [NEW] GET: Fetch All Schools for Admin Dashboard  ---
+
+// --- 23. GET: Fetch All Schools for Admin Dashboard ---
 app.get('/api/schools', async (req, res) => {
   try {
-    // 1. Fetch all profiles
-    const query = `
-      SELECT school_id, school_name, total_enrollment, submitted_at 
-      FROM school_profiles 
-      ORDER BY school_name ASC
-    `;
+    const query = `SELECT school_id, school_name, total_enrollment, submitted_at FROM school_profiles ORDER BY school_name ASC`;
     const result = await pool.query(query);
 
-    // 2. Format the data to match what AdminDashboard.jsx expects
     const schools = result.rows.map(row => ({
       id: row.school_id,
       name: row.school_name,
-      status: 'Submitted', // If it exists in this table, it has been created
+      status: 'Submitted',
       date: row.submitted_at,
       data: {
-        enrollment: {
-          total: row.total_enrollment || 0,
-          // Defaulting these to 0 since we don't have this specific data in the table yet
-          male: 0, 
-          female: 0
-        },
+        enrollment: { total: row.total_enrollment || 0, male: 0, female: 0 },
         faculty: { total: 0 }, 
         performance: { promotion: 'N/A' } 
       }
     }));
-
     res.json(schools);
   } catch (err) {
     console.error("Error fetching schools list:", err);
@@ -565,20 +733,14 @@ app.get('/api/schools', async (req, res) => {
   }
 });
 
-//ENGINEER
-// --- GET: Fetch Project Stats for Admin Engineer View ---
+// --- 24. GET: Fetch Project Stats for Admin Engineer View ---
 app.get('/api/projects/stats', async (req, res) => {
   try {
     const query = `
-      SELECT 
-        project_id, 
-        project_name, 
-        status, 
-        TO_CHAR(target_completion_date, 'YYYY-MM-DD') AS "targetCompletionDate"
+      SELECT project_id, project_name, status, TO_CHAR(target_completion_date, 'YYYY-MM-DD') AS "targetCompletionDate"
       FROM engineer_form;
     `;
     const result = await pool.query(query);
-
     res.json(result.rows); 
   } catch (err) {
     console.error("Error fetching project list for stats:", err);
@@ -586,12 +748,11 @@ app.get('/api/projects/stats', async (req, res) => {
   }
 });
 
-// ... server startup code ...
 // ==================================================================
 //                        SERVER STARTUP
 // ==================================================================
 
-// 1. FOR LOCAL DEVELOPMENT (runs when you type 'node api/index.js')
+// 1. FOR LOCAL DEVELOPMENT
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
@@ -600,5 +761,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 }
 
 // 2. FOR VERCEL (Production)
-// Export default is required for ESM in Vercel
 export default app;

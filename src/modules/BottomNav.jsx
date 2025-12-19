@@ -2,50 +2,47 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 // Icons
-import { TbHomeEdit } from "react-icons/tb";
-import { LuActivity, LuUser, LuCompass, LuSettings, LuUsers } from "react-icons/lu";
+import { TbHomeEdit, TbCloudUpload } from "react-icons/tb";
+import { LuCompass } from "react-icons/lu";
 
-const BottomNav = ({ userRole = 'Engineer' }) => { // Default to Engineer if no role passed
+const BottomNav = ({ userRole = 'Engineer', homeRoute }) => { 
     const navigate = useNavigate();
     const location = useLocation();
 
     // --- CONFIGURATION BY ROLE ---
-    // Define the menu structure for each role here
+    // 1. Explore (Left) | 2. Home (Center/Float) | 3. Sync (Right)
     const navConfigs = {
         'Engineer': [
             { label: 'Explore', path: '/new-project', icon: LuCompass, position: 'side' },
-            { label: 'Home', path: '/engineer-dashboard', icon: TbHomeEdit, position: 'center' }, // Center = Floating
-            { label: 'Settings', path: '/profile', icon: LuUser, position: 'side' }, // Mapped to Profile as requested
+            { label: 'Home', path: '/engineer-dashboard', icon: TbHomeEdit, position: 'center' }, 
+            { label: 'Sync', path: '/outbox', icon: TbCloudUpload, position: 'side' }, 
         ],
         'School Head': [
             { label: 'Explore', path: '/school-forms', icon: LuCompass, position: 'side' },
             { label: 'Home', path: '/schoolhead-dashboard', icon: TbHomeEdit, position: 'center' },
-            { label: 'Settings', path: '/profile', icon: LuUser, position: 'side' },
+            { label: 'Sync', path: '/outbox', icon: TbCloudUpload, position: 'side' },
         ],
         'Admin': [
-            { label: 'Home', path: '/admin-dashboard', icon: TbHomeEdit },
-            { label: 'Activity', path: '/activities', icon: LuActivity },
-            { label: 'Accounts', path: '/accounts', icon: LuUsers },
-            { label: 'Settings', path: '/profile', icon: LuSettings },
+            { label: 'Activity', path: '/activities', icon: LuCompass, position: 'side' }, // Replaced Explore with Activity for Admin context
+            { label: 'Home', path: '/admin-dashboard', icon: TbHomeEdit, position: 'center' },
+            { label: 'Sync', path: '/outbox', icon: TbCloudUpload, position: 'side' },
         ],
         'Human Resource': [
-             // Assuming HR is similar to Admin, or define custom here
-            { label: 'Home', path: '/hr-dashboard', icon: TbHomeEdit },
-            { label: 'Activity', path: '/activities', icon: LuActivity },
-            { label: 'Employees', path: '/employees', icon: LuUsers },
-            { label: 'Profile', path: '/profile', icon: LuUser },
+            { label: 'Activity', path: '/activities', icon: LuCompass, position: 'side' },
+            { label: 'Home', path: '/hr-dashboard', icon: TbHomeEdit, position: 'center' },
+            { label: 'Sync', path: '/outbox', icon: TbCloudUpload, position: 'side' },
         ]
     };
 
-    // Fallback to Engineer if role doesn't match
+    // Fallback: Use Engineer config if role not found
+    // If 'homeRoute' prop is passed (from Activity.jsx), we can attempt to infer, 
+    // but usually relying on 'userRole' state or context is safer. 
+    // Defaults to Engineer config here.
     const currentNavItems = navConfigs[userRole] || navConfigs['Engineer'];
-
-    // Determine Layout Mode: Use "Curved" only if we have exactly 3 items with a center button
-    const isCurvedLayout = currentNavItems.length === 3 && currentNavItems.some(i => i.position === 'center');
 
     // --- RENDER HELPERS ---
 
-    const renderIcon = (IconComponent, path, isActive) => (
+    const renderIcon = (IconComponent, isActive) => (
         <IconComponent
             size={24}
             color={isActive ? '#094684' : '#B0B0B0'}
@@ -53,83 +50,53 @@ const BottomNav = ({ userRole = 'Engineer' }) => { // Default to Engineer if no 
         />
     );
 
-    // --- LAYOUT 1: CURVED (Original Design for 3 Items) ---
-    const renderCurvedLayout = () => {
-        const leftItem = currentNavItems[0];
-        const centerItem = currentNavItems[1];
-        const rightItem = currentNavItems[2];
+    // Split items for layout
+    const leftItem = currentNavItems[0];
+    const centerItem = currentNavItems[1];
+    const rightItem = currentNavItems[2];
 
-        return (
-            <div style={styles.wrapper}>
-                {/* Background Curve SVG */}
-                <div style={styles.curveContainer}>
-                    <svg viewBox="0 0 375 70" preserveAspectRatio="none" style={styles.svg}>
-                        <path 
-                            d="M0,0 L137,0 C145,0 150,5 152,12 C157,35 180,45 187.5,45 C195,45 218,35 223,12 C225,5 230,0 238,0 L375,0 L375,70 L0,70 Z" 
-                            fill="white" 
-                            filter="drop-shadow(0px -5px 10px rgba(0,0,0,0.05))"
-                        />
-                    </svg>
-                </div>
-
-                <div style={styles.navItems}>
-                    {/* Left Button */}
-                    <button style={styles.sideButton} onClick={() => navigate(leftItem.path)}>
-                        {renderIcon(leftItem.icon, leftItem.path, location.pathname === leftItem.path)}
-                        <span style={{ ...styles.label, color: location.pathname === leftItem.path ? '#094684' : '#B0B0B0' }}>
-                            {leftItem.label}
-                        </span>
-                    </button>
-
-                    {/* Center Floating Button */}
-                    <div style={styles.centerButtonContainer}>
-                        <button style={styles.floatingButton} onClick={() => navigate(centerItem.path)}>
-                            <centerItem.icon size={30} color="#ffffffff" />
-                        </button>
-                    </div>
-
-                    {/* Right Button */}
-                    <button style={styles.sideButton} onClick={() => navigate(rightItem.path)}>
-                        {renderIcon(rightItem.icon, rightItem.path, location.pathname === rightItem.path)}
-                        <span style={{ ...styles.label, color: location.pathname === rightItem.path ? '#094684' : '#B0B0B0' }}>
-                            {rightItem.label}
-                        </span>
-                    </button>
-                </div>
+    return (
+        <div style={styles.wrapper}>
+            {/* Background Curve SVG */}
+            <div style={styles.curveContainer}>
+                <svg viewBox="0 0 375 70" preserveAspectRatio="none" style={styles.svg}>
+                    <path 
+                        d="M0,0 L137,0 C145,0 150,5 152,12 C157,35 180,45 187.5,45 C195,45 218,35 223,12 C225,5 230,0 238,0 L375,0 L375,70 L0,70 Z" 
+                        fill="white" 
+                        filter="drop-shadow(0px -5px 10px rgba(0,0,0,0.05))"
+                    />
+                </svg>
             </div>
-        );
-    };
 
-    // --- LAYOUT 2: FLAT (For Admin/HR - 4+ Items) ---
-    const renderFlatLayout = () => (
-        <div style={styles.flatWrapper}>
-            {currentNavItems.map((item, index) => {
-                const isActive = location.pathname === item.path;
-                return (
-                    <button 
-                        key={index} 
-                        style={styles.flatButton} 
-                        onClick={() => navigate(item.path)}
-                    >
-                        <item.icon 
-                            size={24} 
-                            color={isActive ? '#094684' : '#B0B0B0'} 
-                            style={styles.icon}
-                        />
-                        <span style={{ ...styles.label, color: isActive ? '#094684' : '#B0B0B0' }}>
-                            {item.label}
-                        </span>
+            <div style={styles.navItems}>
+                {/* 1. LEFT BUTTON (Explore) */}
+                <button style={styles.sideButton} onClick={() => navigate(leftItem.path)}>
+                    {renderIcon(leftItem.icon, location.pathname === leftItem.path)}
+                    <span style={{ ...styles.label, color: location.pathname === leftItem.path ? '#094684' : '#B0B0B0' }}>
+                        {leftItem.label}
+                    </span>
+                </button>
+
+                {/* 2. CENTER BUTTON (Home - Floating) */}
+                <div style={styles.centerButtonContainer}>
+                    <button style={styles.floatingButton} onClick={() => navigate(centerItem.path)}>
+                        <centerItem.icon size={30} color="#ffffffff" />
                     </button>
-                );
-            })}
+                </div>
+
+                {/* 3. RIGHT BUTTON (Sync - Replaces Profile) */}
+                <button style={styles.sideButton} onClick={() => navigate(rightItem.path)}>
+                    {renderIcon(rightItem.icon, location.pathname === rightItem.path)}
+                    <span style={{ ...styles.label, color: location.pathname === rightItem.path ? '#094684' : '#B0B0B0' }}>
+                        {rightItem.label}
+                    </span>
+                </button>
+            </div>
         </div>
     );
-
-    return isCurvedLayout ? renderCurvedLayout() : renderFlatLayout();
 };
 
 const styles = {
-    // --- CURVED LAYOUT STYLES ---
     wrapper: {
         position: 'fixed',
         bottom: 0,
@@ -139,7 +106,7 @@ const styles = {
         zIndex: 1000,
         display: 'flex',
         justifyContent: 'center',
-        pointerEvents: 'none',
+        pointerEvents: 'none', // Allows clicking through empty spaces
     },
     curveContainer: {
         position: 'absolute',
@@ -164,7 +131,7 @@ const styles = {
         justifyContent: 'space-between',
         alignItems: 'flex-end',
         paddingBottom: '10px',
-        pointerEvents: 'auto',
+        pointerEvents: 'auto', // Re-enables clicking on buttons
     },
     sideButton: {
         flex: 1,
@@ -186,11 +153,11 @@ const styles = {
     },
     floatingButton: {
         position: 'absolute',
-        top: '-55px', // Adjusted slightly to fit new config
+        top: '-55px', // Adjusted to sit perfectly in the SVG dip
         width: '60px',
         height: '60px',
         borderRadius: '50%',
-        backgroundColor: '#0c4885', 
+        backgroundColor: '#0c4885', // DepEd Blue
         border: '4px solid #ffffff',
         boxShadow: '0 4px 10px rgba(20, 20, 20, 0.4)',
         display: 'flex',
@@ -199,36 +166,6 @@ const styles = {
         cursor: 'pointer',
         transition: 'transform 0.2s',
     },
-    
-    // --- FLAT LAYOUT STYLES (For Admin) ---
-    flatWrapper: {
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        width: '100%',
-        height: '70px',
-        zIndex: 1000,
-        display: 'flex',
-        justifyContent: 'space-around',
-        alignItems: 'center',
-        backgroundColor: 'white',
-        boxShadow: '0 -2px 10px rgba(0,0,0,0.05)',
-        borderTopLeftRadius: '15px',
-        borderTopRightRadius: '15px',
-    },
-    flatButton: {
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'none',
-        border: 'none',
-        cursor: 'pointer',
-        height: '100%',
-    },
-
-    // --- SHARED STYLES ---
     icon: {
         marginBottom: '4px',
         transition: 'color 0.3s',
