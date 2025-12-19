@@ -24,6 +24,7 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // --- DATABASE CONNECTION ---
 const pool = new Pool({
@@ -297,60 +298,64 @@ app.post('/api/save-enrolment', async (req, res) => {
 });
 
 // ==================================================================
-//                    ENGINEER FORMS ROUTES
+//                    ENGINEER ROUTES
 // ==================================================================
 
 // --- 8. POST: Save New Project (WITH PH TIMEZONE FIX) ---
 app.post('/api/save-project', async (req, res) => {
   const data = req.body;
 
-  if (!data.schoolName || !data.projectName || !data.schoolId) {
-    return res.status(400).json({ message: "Missing required fields" });
-  }
-  
+  // 1. Add engineer_id to the values array (index 16)
   const values = [
-    data.projectName, data.schoolName, data.schoolId, 
-    valueOrNull(data.region), valueOrNull(data.division),
-    data.status || 'Not Yet Started', parseIntOrNull(data.accomplishmentPercentage), 
-    valueOrNull(data.statusAsOfDate), valueOrNull(data.targetCompletionDate),        
-    valueOrNull(data.actualCompletionDate), valueOrNull(data.noticeToProceed),             
-    valueOrNull(data.contractorName), parseNumberOrNull(data.projectAllocation),      
-    valueOrNull(data.batchOfFunds), valueOrNull(data.otherRemarks)
+    data.projectName, 
+    data.schoolName, 
+    data.schoolId, 
+    valueOrNull(data.region), 
+    valueOrNull(data.division), 
+    data.status || 'Not Yet Started', 
+    parseIntOrNull(data.accomplishmentPercentage), 
+    valueOrNull(data.statusAsOfDate), 
+    valueOrNull(data.targetCompletionDate), 
+    valueOrNull(data.actualCompletionDate), 
+    valueOrNull(data.noticeToProceed), 
+    valueOrNull(data.contractorName), 
+    parseNumberOrNull(data.projectAllocation), 
+    valueOrNull(data.batchOfFunds), 
+    valueOrNull(data.otherRemarks),
+    data.engineer_id // <--- NEW: Add this to match Step 1
   ];
 
-  // UPDATED QUERY: Added 'created_at' column and 'NOW() + interval' logic
+  // 2. Update the query to include the engineer_id column
   const query = `
     INSERT INTO "engineer_form" (
-      project_name, school_name, school_id, region, division,
-      status, accomplishment_percentage, status_as_of,
-      target_completion_date, actual_completion_date, notice_to_proceed,
-      contractor_name, project_allocation, batch_of_funds, other_remarks,
-      created_at
+      project_name, school_name, school_id, region, division, 
+      status, accomplishment_percentage, status_as_of, 
+      target_completion_date, actual_completion_date, 
+      notice_to_proceed, contractor_name, project_allocation, 
+      batch_of_funds, other_remarks, engineer_id, created_at
     ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-        NOW() + interval '8 hours'
-    )
-    RETURNING project_id, project_name;
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 
+      NOW() + interval '8 hours'
+    ) RETURNING project_id, project_name;
   `;
 
   try {
     const result = await pool.query(query, values);
-    const newProject = result.rows[0];
-
-    // Log the activity
+    
+    // Log activity using the data sent from frontend
     await logActivity(
-        data.uid, 
-        data.modifiedBy, 
-        'Engineer', 
-        'CREATE', 
-        `Project: ${newProject.project_name}`, 
-        `Created new project for ${data.schoolName}`
+      data.uid, 
+      data.modifiedBy, 
+      'Engineer', 
+      'CREATE', 
+      `Project: ${data.projectName}`, 
+      `New project created for ${data.schoolName}`
     );
 
-    res.status(200).json({ message: "Project saved!", project: newProject });
+    res.status(201).json({ success: true, project: result.rows[0] });
   } catch (err) {
-    console.error("❌ SQL ERROR:", err.message);
-    res.status(500).json({ message: "Database error", error: err.message });
+    console.error("Save Project Error:", err);
+    res.status(500).json({ message: "Database error" });
   }
 });
 
@@ -367,7 +372,7 @@ app.put('/api/update-project/:id', async (req, res) => {
       accomplishment_percentage = $2, 
       status_as_of = $3, 
       other_remarks = $4,
-      updated_at = NOW() + interval '8 hours'
+      created_at = NOW() + interval '8 hours'
     WHERE project_id = $5
     RETURNING *;
   `;
@@ -404,25 +409,24 @@ app.put('/api/update-project/:id', async (req, res) => {
 
 // --- 10. GET: Get All Projects ---
 app.get('/api/projects', async (req, res) => {
+  const { engineer_id } = req.query; // <--- Get the ID from the URL parameters
+
+  if (!engineer_id) {
+    return res.status(400).json({ error: "engineer_id is required" });
+  }
+
   try {
+    // UPDATED QUERY: Added WHERE engineer_id = $1
     const query = `
-      SELECT 
-        project_id AS "id", school_name AS "schoolName", project_name AS "projectName",
-        school_id AS "schoolId", division, region, status,
-        accomplishment_percentage AS "accomplishmentPercentage",
-        project_allocation AS "projectAllocation", batch_of_funds AS "batchOfFunds",
-        contractor_name AS "contractorName", other_remarks AS "otherRemarks",
-        TO_CHAR(status_as_of, 'YYYY-MM-DD') AS "statusAsOfDate",
-        TO_CHAR(target_completion_date, 'YYYY-MM-DD') AS "targetCompletionDate",
-        TO_CHAR(actual_completion_date, 'YYYY-MM-DD') AS "actualCompletionDate",
-        TO_CHAR(notice_to_proceed, 'YYYY-MM-DD') AS "noticeToProceed"
-      FROM "engineer_form"
-      ORDER BY project_id DESC; 
+      SELECT * FROM engineer_form 
+      WHERE engineer_id = $1 
+      ORDER BY created_at DESC
     `;
-    const result = await pool.query(query);
+    const result = await pool.query(query, [engineer_id]);
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ message: "Server error fetching projects" });
+    console.error("Error fetching projects:", err);
+    res.status(500).json({ error: "Database error fetching projects" });
   }
 });
 
@@ -451,6 +455,138 @@ app.get('/api/projects/:id', async (req, res) => {
   }
 });
 
+// --- 12. POST: Upload Project Image (Base64) ---
+app.post('/api/upload-image', async (req, res) => {
+  const { projectId, imageData, uploadedBy } = req.body;
+
+  if (!projectId || !imageData) {
+    return res.status(400).json({ error: "Missing required data" });
+  }
+
+  try {
+    const query = `
+      INSERT INTO engineer_image (project_id, image_data, uploaded_by)
+      VALUES ($1, $2, $3)
+      RETURNING id;
+    `;
+    const result = await pool.query(query, [projectId, imageData, uploadedBy]);
+
+    // Log the activity
+    await logActivity(
+        uploadedBy, 
+        'Engineer', // You might want to pass the name here too
+        'Engineer', 
+        'UPLOAD', 
+        `Project ID: ${projectId}`, 
+        `Uploaded a new site image`
+    );
+
+    res.status(201).json({ success: true, imageId: result.rows[0].id });
+  } catch (err) {
+    console.error("❌ Image Upload Error:", err.message);
+    res.status(500).json({ error: "Failed to save image to database" });
+  }
+});
+
+// --- 13. GET: Fetch All Images for a Specific Project ---
+app.get('/api/project-images/:projectId', async (req, res) => {
+  const { projectId } = req.params;
+
+  try {
+    const query = `
+      SELECT id, image_data, uploaded_by, created_at 
+      FROM engineer_image 
+      WHERE project_id = $1 
+      ORDER BY created_at DESC;
+    `;
+    const result = await pool.query(query, [projectId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error("❌ Error fetching project images:", err.message);
+    res.status(500).json({ error: "Failed to fetch images from database" });
+  }
+});
+
+// --- NEW: Fetch All Images for a Specific Engineer ---
+app.get('/api/engineer-images/:engineerId', async (req, res) => {
+  const { engineerId } = req.params;
+
+  try {
+    const query = `
+      SELECT ei.id, ei.image_data, ei.created_at, ef.school_name 
+      FROM engineer_image ei
+      LEFT JOIN engineer_form ef ON ei.project_id = ef.project_id
+      WHERE ei.uploaded_by = $1 
+      ORDER BY ei.created_at DESC;
+    `;
+    const result = await pool.query(query, [engineerId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error("❌ Error fetching engineer gallery:", err.message);
+    res.status(500).json({ error: "Failed to fetch gallery" });
+  }
+});
+// ==================================================================
+//                    ADMIN ROUTES
+// ==================================================================
+// --- [NEW] GET: Fetch All Schools for Admin Dashboard  ---
+app.get('/api/schools', async (req, res) => {
+  try {
+    // 1. Fetch all profiles
+    const query = `
+      SELECT school_id, school_name, total_enrollment, submitted_at 
+      FROM school_profiles 
+      ORDER BY school_name ASC
+    `;
+    const result = await pool.query(query);
+
+    // 2. Format the data to match what AdminDashboard.jsx expects
+    const schools = result.rows.map(row => ({
+      id: row.school_id,
+      name: row.school_name,
+      status: 'Submitted', // If it exists in this table, it has been created
+      date: row.submitted_at,
+      data: {
+        enrollment: {
+          total: row.total_enrollment || 0,
+          // Defaulting these to 0 since we don't have this specific data in the table yet
+          male: 0, 
+          female: 0
+        },
+        faculty: { total: 0 }, 
+        performance: { promotion: 'N/A' } 
+      }
+    }));
+
+    res.json(schools);
+  } catch (err) {
+    console.error("Error fetching schools list:", err);
+    res.status(500).json({ error: "Database error fetching schools" });
+  }
+});
+
+//ENGINEER
+// --- GET: Fetch Project Stats for Admin Engineer View ---
+app.get('/api/projects/stats', async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        project_id, 
+        project_name, 
+        status, 
+        TO_CHAR(target_completion_date, 'YYYY-MM-DD') AS "targetCompletionDate"
+      FROM engineer_form;
+    `;
+    const result = await pool.query(query);
+
+    res.json(result.rows); 
+  } catch (err) {
+    console.error("Error fetching project list for stats:", err);
+    res.status(500).json({ error: "Database error fetching project stats" });
+  }
+});
+
+// ... server startup code ...
 // ==================================================================
 //                        SERVER STARTUP
 // ==================================================================

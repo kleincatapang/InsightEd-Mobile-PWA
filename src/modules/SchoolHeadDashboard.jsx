@@ -240,7 +240,7 @@ const SchoolHeadDashboard = () => {
             </div>
 
             {/* Bottom Navigation */}
-            <BottomNav homeRoute="/schoolhead-dashboard" />
+            <BottomNav userRole="School Head" />
         </div>
     );
 };

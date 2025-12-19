@@ -139,25 +139,27 @@ const Register = () => {
     };
 
     const saveUserToDB = async (user, isGoogle = false) => {
-        const [firstName, ...lastNameParts] = user.displayName ? user.displayName.split(" ") : [formData.firstName, formData.lastName];
-        
-        await setDoc(doc(db, "users", user.uid), {
-            email: user.email,
-            role: formData.role,
-            firstName: isGoogle ? firstName : formData.firstName,
-            lastName: isGoogle ? lastNameParts.join(" ") : formData.lastName,
-            // Saving exact text values from dropdowns
-            region: formData.region,
-            province: formData.province,
-            city: formData.city,
-            barangay: formData.barangay,
-            authProvider: isGoogle ? "google" : "email",
-            createdAt: new Date()
-        }, { merge: true });
-        
-        const path = getDashboardPath(formData.role);
-        navigate(path);
-    };
+    const [firstName, ...lastNameParts] = user.displayName 
+        ? user.displayName.split(" ") 
+        : [formData.firstName, formData.lastName];
+    
+    await setDoc(doc(db, "users", user.uid), {
+        userId: user.uid, // <--- ADD THIS LINE TO SAVE THE ID AS A FIELD
+        email: user.email,
+        role: formData.role,
+        firstName: isGoogle ? firstName : formData.firstName,
+        lastName: isGoogle ? lastNameParts.join(" ") : formData.lastName,
+        region: formData.region,
+        province: formData.province,
+        city: formData.city,
+        barangay: formData.barangay,
+        authProvider: isGoogle ? "google" : "email",
+        createdAt: new Date()
+    }, { merge: true });
+    
+    const path = getDashboardPath(formData.role);
+    navigate(path);
+};
 
     return (
         <div className="register-container">

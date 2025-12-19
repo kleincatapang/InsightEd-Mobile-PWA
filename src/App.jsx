@@ -12,7 +12,7 @@ import HRDashboard from './modules/HRDashboard';
 import AdminDashboard from './modules/AdminDashboard'; 
 import UserProfile from './modules/UserProfile'; 
 import Activity from './modules/Activity';    
-
+import ProjectGallery from './modules/ProjectGallery';
 // Forms Menus
 import SchoolForms from './modules/SchoolForms';
 import EngineerForms from './modules/EngineerForms'; 
@@ -80,6 +80,9 @@ function App() {
         <Route path="/new-project" element={<NewProjects />} /> 
         <Route path="/project-details/:id" element={<DetailedProjInfo />} /> 
 
+      {/* Gallery Route */}
+        <Route path="/project-gallery" element={<ProjectGallery />} />
+<Route path="/project-gallery/:projectId" element={<ProjectGallery />} />
       </Routes>
     </Router>
   );

@@ -1,4 +1,3 @@
-// src/modules/UserProfile.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase'; 
@@ -9,8 +8,7 @@ import PageTransition from '../components/PageTransition';
 const UserProfile = () => {
     const navigate = useNavigate();
     const [userData, setUserData] = useState(null);
-    const [schoolId, setSchoolId] = useState(null); // <--- NEW STATE
-    const [homeRoute, setHomeRoute] = useState('/');
+    const [schoolId, setSchoolId] = useState(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -21,9 +19,8 @@ const UserProfile = () => {
                 const docSnap = await getDoc(docRef);
                 
                 if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    setUserData(data);
-                    setHomeRoute(getDashboardPath(data.role));
+                    setUserData(docSnap.data());
+                    // We don't need to calculate homeRoute anymore!
                 }
 
                 // 2. Fetch Assigned School from Neon
@@ -40,16 +37,6 @@ const UserProfile = () => {
         };
         fetchData();
     }, []);
-
-    const getDashboardPath = (role) => {
-        const roleMap = {
-            'Engineer': '/engineer-dashboard',
-            'School Head': '/schoolhead-dashboard',
-            'Human Resource': '/hr-dashboard',
-            'Admin': '/admin-dashboard',
-        };
-        return roleMap[role] || '/';
-    };
 
     const handleLogout = async () => {
         if (window.confirm("Are you sure you want to log out?")) {
@@ -82,7 +69,6 @@ const UserProfile = () => {
                 <div style={styles.card}>
                     <h3 style={styles.sectionTitle}>ℹ️ Employment Details</h3>
                     
-                    {/* NEW ROW: School ID */}
                     <div style={styles.row}>
                         <span style={styles.label}>School ID</span>
                         <span style={{...styles.value, color: schoolId ? '#004A99' : '#999'}}>
@@ -125,7 +111,8 @@ const UserProfile = () => {
                     </button>
                 </div>
 
-                <BottomNav homeRoute={homeRoute} />
+                {/* --- FIX IS HERE: Pass userRole instead of homeRoute --- */}
+                <BottomNav userRole={userData?.role} />
             </div>
         </PageTransition>
     );

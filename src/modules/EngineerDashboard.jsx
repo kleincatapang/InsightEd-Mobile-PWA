@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Pagination, Autoplay } from 'swiper/modules';
@@ -47,7 +47,6 @@ const DashboardStats = ({ projects }) => {
 
   return (
     <div className="mb-6 space-y-3">
-      {/* Cards */}
       <div className="grid grid-cols-3 gap-2">
         <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-center items-center text-center">
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Allocation</p>
@@ -70,7 +69,6 @@ const DashboardStats = ({ projects }) => {
         </div>
       </div>
 
-      {/* Chart */}
       <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
          <div className="flex flex-col justify-center ml-2">
              <p className="text-xs font-bold text-slate-700 mb-2">Project Status Mix</p>
@@ -99,6 +97,7 @@ const DashboardStats = ({ projects }) => {
 };
 
 const ProjectTable = ({ projects, onEdit, onAnalyze, onView, isLoading }) => {
+    const navigate = useNavigate();
   const getStatusColor = (status) => {
     switch (status) {
       case ProjectStatus.Completed: return 'bg-emerald-100 text-emerald-800 border-emerald-200';
@@ -138,7 +137,6 @@ const ProjectTable = ({ projects, onEdit, onAnalyze, onView, isLoading }) => {
     <div className="bg-white rounded-xl shadow border border-slate-200 flex flex-col h-[450px] overflow-hidden">
       <div className="overflow-auto flex-1 relative">
         <table className="w-full text-left border-collapse">
-          {/* COMPACT HEADER WIDTHS */}
           <thead className="bg-slate-50 sticky top-0 z-20 shadow-sm text-[10px] uppercase font-semibold text-slate-500">
             <tr>
               <th className="sticky left-0 bg-slate-50 z-30 p-2 border-b border-r border-slate-200 min-w-[130px]">Project Info</th>
@@ -149,12 +147,10 @@ const ProjectTable = ({ projects, onEdit, onAnalyze, onView, isLoading }) => {
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
             {projects.map((project) => {
-              // Check if project is completed to lock it
               const isLocked = project.status === ProjectStatus.Completed;
 
               return (
                 <tr key={project.id} className="hover:bg-slate-50 transition-colors group">
-                  {/* Project Info */}
                   <td className="sticky left-0 bg-white group-hover:bg-slate-50 z-10 p-2 border-r border-slate-200 align-top">
                     <div className="font-bold text-[#004A99] mb-1 line-clamp-2 leading-tight">{project.schoolName}</div>
                     <div className="text-[9px] text-slate-500 mb-1 line-clamp-1">{project.projectName}</div>
@@ -163,7 +159,6 @@ const ProjectTable = ({ projects, onEdit, onAnalyze, onView, isLoading }) => {
                     </div>
                   </td>
                   
-                  {/* Status */}
                   <td className="p-2 align-top">
                     <div className="mb-2">
                       <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold border ${getStatusColor(project.status)}`}>
@@ -171,7 +166,6 @@ const ProjectTable = ({ projects, onEdit, onAnalyze, onView, isLoading }) => {
                       </span>
                     </div>
                     
-                    {/* --- CONDITIONAL PROGRESS BAR --- */}
                     {(project.status === ProjectStatus.Ongoing || project.status === ProjectStatus.Completed) ? (
                       <>
                           <div className="w-full bg-slate-200 rounded-full h-1.5 mt-1">
@@ -188,7 +182,6 @@ const ProjectTable = ({ projects, onEdit, onAnalyze, onView, isLoading }) => {
                     )}
                   </td>
 
-                  {/* Timeline */}
                   <td className="p-2 align-top text-[10px]">
                     <div className="mb-1">
                         <span className="text-slate-400 block text-[9px] uppercase">Target</span> 
@@ -200,29 +193,30 @@ const ProjectTable = ({ projects, onEdit, onAnalyze, onView, isLoading }) => {
                     </div>
                   </td>
 
-                  {/* Actions */}
-                  <td className="sticky right-0 bg-white group-hover:bg-slate-50 z-10 p-2 border-l border-slate-200 align-top text-center flex flex-col gap-1.5">
+                 <td className="sticky right-0 bg-white group-hover:bg-slate-50 z-10 p-2 border-l border-slate-200 align-top text-center flex flex-col gap-1.5">
                     <button onClick={() => onView(project)} className="w-full px-1 py-1 bg-slate-100 border border-slate-200 text-slate-600 text-[9px] font-bold rounded hover:bg-slate-200 transition">
-                      VIEW
+                        VIEW
                     </button>
                     
-                    {/* UPDATED BUTTON: LOCKED IF COMPLETED */}
-                    <button 
-                      onClick={() => onEdit(project)} 
-                      disabled={isLocked}
-                      className={`w-full px-1 py-1 text-[9px] font-bold rounded transition ${
-                          isLocked 
-                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300' // Locked state
-                          : 'bg-[#004A99] text-white hover:bg-blue-800' // Active state
-                      }`}
+                    {/*<button 
+                        onClick={() => navigate(`/project-gallery/${project.id}`)} 
+                        className="w-full px-1 py-1 bg-amber-50 border border-amber-200 text-amber-600 text-[9px] font-bold rounded hover:bg-amber-100 transition"
                     >
-                      {isLocked ? 'LOCKED' : 'UPDATE'}
-                    </button>
+                        GALLERY
+                    </button> */}
 
-                    <button onClick={() => onAnalyze(project)} className="w-full px-1 py-1 bg-purple-50 border border-purple-200 text-purple-600 text-[10px] font-bold rounded hover:bg-purple-100 transition">
-                      ✨
+                    <button 
+                        onClick={() => onEdit(project)} 
+                        disabled={isLocked}
+                        className={`w-full px-1 py-1 text-[9px] font-bold rounded transition ${
+                            isLocked 
+                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300' 
+                            : 'bg-[#004A99] text-white hover:bg-blue-800'
+                        }`}
+                    >
+                        {isLocked ? 'LOCKED' : 'UPDATE'}
                     </button>
-                  </td>
+                </td>
                 </tr>
               );
             })}
@@ -235,7 +229,6 @@ const ProjectTable = ({ projects, onEdit, onAnalyze, onView, isLoading }) => {
 
 const EditProjectModal = ({ project, isOpen, onClose, onSave }) => {
   const [formData, setFormData] = useState(null);
-  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     if (project) setFormData({ ...project });
@@ -245,58 +238,22 @@ const EditProjectModal = ({ project, isOpen, onClose, onSave }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
     setFormData(prev => {
         let newData = { ...prev, [name]: value };
-
-        // 1. If User changes Percentage manually 
         if (name === 'accomplishmentPercentage') {
             const percent = parseFloat(value);
-            
-            if (percent === 100) {
-                // If user enters 100%, status can be Completed or For Final Inspection
-                if (prev.status !== ProjectStatus.Completed) {
-                    // Assume if it was not completed, 100% means it's ready for inspection
-                    newData.status = ProjectStatus.ForFinalInspection; 
-                }
-            } 
-            // If they change 100% to < 100%, it reverts to Ongoing
-            else if (percent >= 1 && percent < 100) {
-                 // Only change status back to Ongoing if it was Completed or For Final Inspection
-                 if (prev.status === ProjectStatus.Completed || prev.status === ProjectStatus.ForFinalInspection) {
-                    newData.status = ProjectStatus.Ongoing;
-                 }
-            }
-            // If they change 90% to 0%, it reverts to Not Yet Started
-            else if (percent === 0) {
-                 newData.status = ProjectStatus.NotYetStarted;
-            }
+            if (percent === 100) { if (prev.status !== ProjectStatus.Completed) newData.status = ProjectStatus.ForFinalInspection; } 
+            else if (percent >= 1 && percent < 100) { if (prev.status === ProjectStatus.Completed || prev.status === ProjectStatus.ForFinalInspection) newData.status = ProjectStatus.Ongoing; }
+            else if (percent === 0) newData.status = ProjectStatus.NotYetStarted;
         }
-
-        // 2. If User changes Status manually (Auto-set logic)
         if (name === 'status') {
-            if (value === ProjectStatus.NotYetStarted || value === ProjectStatus.UnderProcurement) {
-                newData.accomplishmentPercentage = 0;
-            } 
-            // Force 100% when status is manually set to Completed OR ForFinalInspection
-            else if (value === ProjectStatus.Completed || value === ProjectStatus.ForFinalInspection) {
-                 newData.accomplishmentPercentage = 100;
-            }
+            if (value === ProjectStatus.NotYetStarted || value === ProjectStatus.UnderProcurement) newData.accomplishmentPercentage = 0;
+            else if (value === ProjectStatus.Completed || value === ProjectStatus.ForFinalInspection) newData.accomplishmentPercentage = 100;
         }
-
         return newData;
     });
   };
 
-  const handleGenerateAI = async () => {
-      setIsGenerating(true);
-      setTimeout(() => {
-        setFormData(prev => ({ ...prev, otherRemarks: "Based on the 85% progress and current weather patterns in Bulacan, minor delays are expected. Recommendation: Expedite roof installation." }));
-        setIsGenerating(false);
-      }, 1500);
-  };
-  
-  // Disable percentage input if status is Not Started, Under Procurement, Completed, OR For Final Inspection
   const isDisabledPercentageInput = formData.status === ProjectStatus.NotYetStarted || 
                                     formData.status === ProjectStatus.UnderProcurement ||
                                     formData.status === ProjectStatus.Completed ||
@@ -325,7 +282,6 @@ const EditProjectModal = ({ project, isOpen, onClose, onSave }) => {
                         value={formData.accomplishmentPercentage} 
                         onChange={handleChange} 
                         min="0" max="100"
-                        // Input is disabled if percentage is automatically managed by status
                         disabled={isDisabledPercentageInput}
                         className={`w-full p-2 border border-slate-300 rounded-lg text-sm font-bold ${isDisabledPercentageInput ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'text-[#004A99]'}`}
                     />
@@ -336,12 +292,7 @@ const EditProjectModal = ({ project, isOpen, onClose, onSave }) => {
                  <input type="date" name="statusAsOfDate" value={formData.statusAsOfDate} onChange={handleChange} className="w-full p-2 border rounded-lg text-sm" />
             </div>
             <div>
-                 <div className="flex justify-between items-center mb-1">
-                     <label className="block text-xs font-bold text-slate-500 uppercase">Remarks</label>
-                     <button type="button" onClick={handleGenerateAI} className="text-[10px] text-purple-600 font-bold flex items-center gap-1">
-                        {isGenerating ? <span className="animate-pulse">Generating...</span> : <>✨ Auto-Generate with AI</>}
-                     </button>
-                 </div>
+                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Remarks</label>
                  <textarea name="otherRemarks" value={formData.otherRemarks || ''} onChange={handleChange} rows={3} className="w-full p-2 border rounded-lg text-sm" />
             </div>
         </div>
@@ -398,9 +349,18 @@ const EngineerDashboard = () => {
     const [aiLoading, setAiLoading] = useState(false);
     const [aiAnalysis, setAiAnalysis] = useState('');
 
-    // --- EFFECT: Fetch User & Projects ---
+    // --- [UPDATED] Image Upload State & Refs ---
+    const [isUploading, setIsUploading] = useState(false);
+    const [showUploadOptions, setShowUploadOptions] = useState(false);
+    const fileInputRef = useRef(null);
+    const cameraInputRef = useRef(null);
+
+    // API Base URL
+    const API_BASE = 'http://localhost:3000';
+
+    // Fetch User & Projects
     useEffect(() => {
-        const fetchUserData = async () => {
+        const fetchUserDataAndProjects = async () => {
             const user = auth.currentUser;
             if (user) {
                 const docRef = doc(db, "users", user.uid);
@@ -408,61 +368,54 @@ const EngineerDashboard = () => {
                 if (docSnap.exists()) {
                     setUserName(docSnap.data().firstName);
                 }
+
+                try {
+                    setIsLoading(true);
+                    const response = await fetch(`${API_BASE}/api/projects?engineer_id=${user.uid}`);
+                    if (!response.ok) throw new Error("Failed to fetch projects");
+                    const data = await response.json();
+                    
+                    const mappedData = data.map(item => ({
+                        id: item.project_id,
+                        projectName: item.project_name,
+                        schoolName: item.school_name,
+                        schoolId: item.school_id,
+                        status: item.status,
+                        accomplishmentPercentage: item.accomplishment_percentage,
+                        projectAllocation: item.project_allocation,
+                        targetCompletionDate: item.target_completion_date,
+                        statusAsOfDate: item.status_as_of,
+                        otherRemarks: item.other_remarks,
+                        contractorName: item.contractor_name
+                    }));
+                    setProjects(mappedData);
+                } catch (err) {
+                    console.error("Error loading projects:", err);
+                } finally {
+                    setIsLoading(false);
+                }
             }
         };
-
-        const fetchProjects = async () => {
-            try {
-                setIsLoading(true);
-                const response = await fetch('http://localhost:3000/api/projects');
-                if (!response.ok) throw new Error("Failed to fetch projects");
-                
-                const data = await response.json();
-                setProjects(data);
-            } catch (err) {
-                console.error("Error loading projects:", err);
-            } finally {
-                setIsLoading(false);
-            }
-        }
-
-        fetchUserData();
-        fetchProjects();
+        fetchUserDataAndProjects();
     }, []);
 
     // Handlers
-    const handleViewProject = (project) => {
-        navigate(`/project-details/${project.id}`);
-    };
-
-    const handleEditProject = (project) => {
-        setSelectedProject(project);
-        setEditModalOpen(true);
-    };
+    const handleViewProject = (project) => navigate(`/project-details/${project.id}`);
+    const handleEditProject = (project) => { setSelectedProject(project); setEditModalOpen(true); };
 
     const handleSaveProject = async (updatedProject) => {
-        // Optimistic UI Update
+        const user = auth.currentUser;
+        if (!user) return;
         setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
-
         try {
-            const response = await fetch(`http://localhost:3000/api/update-project/${updatedProject.id}`, {
+            const body = { ...updatedProject, uid: user.uid, modifiedBy: userName };
+            await fetch(`${API_BASE}/api/update-project/${updatedProject.id}`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(updatedProject),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
             });
-
-            if (!response.ok) {
-                throw new Error("Failed to update in database");
-            }
-
-            const result = await response.json();
-            console.log("Database updated:", result);
-
         } catch (err) {
             console.error("❌ Update Error:", err);
-            alert("Failed to save changes to the database. Please check your connection.");
         }
     };
 
@@ -470,11 +423,59 @@ const EngineerDashboard = () => {
         setSelectedProject(project);
         setAiModalOpen(true);
         setAiLoading(true);
-        
         setTimeout(() => {
             setAiAnalysis(`RISK ASSESSMENT: HIGH\n\n1. **Delay Risk**: The project is ${100 - (project.accomplishmentPercentage || 0)}% remaining vs timeline.\n2. **Budget**: Allocation of ₱${((project.projectAllocation||0)/1000000).toFixed(1)}M is under review.`);
             setAiLoading(false);
         }, 2000);
+    };
+
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Validation (5MB limit)
+        if (file.size > 5 * 1024 * 1024) {
+            alert("File is too large. Please upload an image under 5MB.");
+            return;
+        }
+
+        const targetProject = selectedProject || projects[0];
+        if (!targetProject) {
+            alert("No projects found to attach image to.");
+            return;
+        }
+
+        setIsUploading(true);
+
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+            const base64Data = reader.result;
+            try {
+                const user = auth.currentUser;
+                const response = await fetch(`${API_BASE}/api/upload-image`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        projectId: targetProject.id,
+                        imageData: base64Data,
+                        uploadedBy: user.uid
+                    }),
+                });
+
+                if (response.ok) {
+                    alert(`Site photo uploaded successfully for ${targetProject.schoolName}!`);
+                } else {
+                    throw new Error("Upload failed");
+                }
+            } catch (err) {
+                console.error("Upload error:", err);
+                alert("Failed to upload image to database.");
+            } finally {
+                setIsUploading(false);
+                e.target.value = null; // Reset input
+            }
+        };
     };
 
     const sliderContent = [
@@ -502,15 +503,9 @@ const EngineerDashboard = () => {
 
                 {/* --- MAIN CONTENT CONTAINER --- */}
                 <div className="px-5 -mt-16 relative z-10 space-y-6">
-
-                    {/* 1. Statistics Section */}
                     <DashboardStats projects={projects} />
 
-                    {/* 2. Announcements Slider */}
                     <div className="w-full">
-                        <div className="flex items-center justify-between mb-2 px-1">
-                            <h2 className="text-slate-700 font-bold text-sm">Updates & Reminders</h2>
-                        </div>
                         <Swiper
                             modules={[Pagination, Autoplay]}
                             spaceBetween={15}
@@ -535,24 +530,27 @@ const EngineerDashboard = () => {
                         </Swiper>
                     </div>
 
-                    {/* 3. Project Table Section */}
-                    <div>
-                        <div className="flex items-center justify-between mb-3 px-1">
-                            <h2 className="text-slate-700 font-bold text-lg">Project Monitoring</h2>
-                            
-                            <div className="flex gap-2">
-                                <button 
-                                    onClick={() => navigate('/new-project')} 
-                                    className="text-[10px] bg-[#004A99] text-white px-3 py-1 rounded-full font-medium shadow-sm hover:bg-blue-800 transition flex items-center gap-1"
-                                >
-                                    <span className="text-base leading-none">+</span> New Project
-                                </button>
-                                <button className="text-[10px] bg-white border border-slate-200 px-3 py-1 rounded-full text-slate-600 font-medium shadow-sm">
-                                    Filter ▾
-                                </button>
-                            </div>
+                  <div>
+    <div className="flex items-center justify-between mb-3 px-1">
+        <h2 className="text-slate-700 font-bold text-lg">Project Monitoring</h2>
+        
+        <div className="flex gap-2">
+            {/* NEW GALLERY BUTTON */}
+            <button 
+                onClick={() => navigate('/project-gallery')} 
+                className="text-[10px] bg-white border border-slate-200 text-slate-600 px-3 py-1 rounded-full font-bold shadow-sm hover:bg-slate-50 transition flex items-center gap-1"
+            >
+                <span className="text-sm">🖼️</span> My Gallery
+            </button>
 
-                        </div>
+            <button 
+                onClick={() => navigate('/new-project')} 
+                className="text-[10px] bg-[#004A99] text-white px-3 py-1 rounded-full font-medium shadow-sm hover:bg-blue-800 transition flex items-center gap-1"
+            >
+                <span className="text-base leading-none">+</span> New Project
+            </button>
+        </div>
+    </div>
                         <ProjectTable 
                             projects={projects} 
                             onEdit={handleEditProject} 
@@ -564,10 +562,74 @@ const EngineerDashboard = () => {
                             Swipe table horizontally to view more details
                         </p>
                     </div>
-
                 </div>
 
-                {/* --- MODALS --- */}
+                {/* --- [UPDATED] FLOATING IMAGE UPLOAD SECTION --- */}
+                <div className="fixed bottom-24 right-6 z-50 flex flex-col items-end">
+                    {/* Hidden Inputs */}
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleFileUpload} 
+                        accept="image/*" 
+                        className="hidden" 
+                    />
+                    <input 
+                        type="file" 
+                        ref={cameraInputRef} 
+                        onChange={handleFileUpload} 
+                        accept="image/*" 
+                        capture="environment" // Forces camera on mobile
+                        className="hidden" 
+                    />
+
+                    {/* Upload Options Menu */}
+                    {showUploadOptions && (
+                        <div className="mb-4 flex flex-col gap-3 animate-slide-up">
+                            {/* Take Photo Button */}
+                            <button 
+                                onClick={() => { cameraInputRef.current.click(); setShowUploadOptions(false); }}
+                                className="flex items-center gap-3 bg-white px-4 py-2 rounded-full shadow-lg border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all active:scale-95"
+                            >
+                                <span className="text-lg">📷</span>
+                                <span className="text-xs font-bold uppercase">Take Photo</span>
+                            </button>
+
+                            {/* Upload Gallery Button */}
+                            <button 
+                                onClick={() => { fileInputRef.current.click(); setShowUploadOptions(false); }}
+                                className="flex items-center gap-3 bg-white px-4 py-2 rounded-full shadow-lg border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all active:scale-95"
+                            >
+                                <span className="text-lg">🖼️</span>
+                                <span className="text-xs font-bold uppercase">From Gallery</span>
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Main Floating Toggle Button */}
+                    <button 
+                        onClick={() => setShowUploadOptions(!showUploadOptions)}
+                        disabled={isUploading || projects.length === 0}
+                        className={`${
+                            isUploading ? 'bg-slate-400' : 'bg-[#FDB913] hover:bg-yellow-500'
+                        } w-14 h-14 rounded-full shadow-2xl flex items-center justify-center text-white transition-all transform ${showUploadOptions ? 'rotate-45' : ''} border-4 border-white`}
+                    >
+                        {isUploading ? (
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                            <span className="text-2xl">{showUploadOptions ? '✕' : '📸'}</span>
+                        )}
+                    </button>
+
+                    {/* Backdrop to close menu when clicking elsewhere */}
+                    {showUploadOptions && (
+                        <div 
+                            className="fixed inset-0 z-[-1] bg-black/5 backdrop-blur-[1px]" 
+                            onClick={() => setShowUploadOptions(false)}
+                        />
+                    )}
+                </div>
+
                 <EditProjectModal 
                     project={selectedProject} 
                     isOpen={editModalOpen} 
@@ -583,8 +645,7 @@ const EngineerDashboard = () => {
                     isLoading={aiLoading}
                 />
 
-                {/* Bottom Navigation */}
-                <BottomNav homeRoute="/engineer-dashboard" />
+                <BottomNav userRole="Engineer" />
             </div>
         </PageTransition>
     );

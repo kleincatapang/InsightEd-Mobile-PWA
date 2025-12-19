@@ -176,7 +176,6 @@ const SchoolForms = () => {
                 ))}
             </div>
 
-            <BottomNav active="forms" />
         </div>
     );
 };
